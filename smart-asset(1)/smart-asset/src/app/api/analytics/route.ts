@@ -3,15 +3,14 @@ import { getSupabaseServer } from '@/lib/supabase/server';
 import { companies, equipmentById, equipments, failures, partById, partRequests } from '@/lib/sample-data';
 
 function demoAnalytics() {
+  const resolvedFailures = failures.filter((f) => f.resolved_at);
   const kpis = {
     total_equipment: equipments.length,
     open_failures: failures.filter((f) => !['resolved', 'closed'].includes(f.status)).length,
     pending_parts: partRequests.filter((r) => !['delivered', 'cancelled'].includes(r.status)).length,
     avg_repair_hours: Math.round(
-      failures
-        .filter((f) => f.resolved_at)
-        .reduce((acc, f) => acc + (new Date(f.resolved_at!).getTime() - new Date(f.reported_at).getTime()) / 36e5, 0) /
-        Math.max(failures.filter((f) => f.resolved_at).length, 1),
+      resolvedFailures.reduce((acc, f) => acc + (new Date(f.resolved_at!).getTime() - new Date(f.reported_at).getTime()) / 36e5, 0) /
+        Math.max(resolvedFailures.length, 1),
     ),
   };
 

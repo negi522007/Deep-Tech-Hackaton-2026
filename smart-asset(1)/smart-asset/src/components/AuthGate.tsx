@@ -36,7 +36,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   if (!ready) {
-    return <div className="min-h-screen grid place-items-center text-sm text-steel">Chargement session…</div>;
+    return <div className="min-h-screen grid place-items-center text-sm text-steel">Chargement de la session…</div>;
   }
   return <>{children}</>;
 }

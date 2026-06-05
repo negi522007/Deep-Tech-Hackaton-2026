@@ -1,5 +1,6 @@
 export async function apiGet<T>(url: string, fallback: T): Promise<T> {
   try {
+    // Data is operational/live (dashboards/workflow), so we always bypass cache.
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return fallback;
     const json = await res.json();
@@ -13,7 +14,7 @@ export async function apiPost<T>(url: string, body: unknown): Promise<T | null> 
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!res.ok) return null;
@@ -28,7 +29,7 @@ export async function apiPatch<T>(url: string, body: unknown): Promise<T | null>
   try {
     const res = await fetch(url, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!res.ok) return null;
