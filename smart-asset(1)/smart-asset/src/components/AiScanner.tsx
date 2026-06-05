@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AiDiagnosis } from '@/lib/types';
 import { Scan, Sparkles, Package, Check, Cpu } from 'lucide-react';
 import { AnimatedCounter, ease } from './motion';
+import { apiGet } from '@/lib/http';
 
 type Phase = 'idle' | 'scanning' | 'done';
 
@@ -15,15 +16,18 @@ const BOXES = [
 ];
 
 export default function AiScanner({
-  image, context, onDiagnosis,
+  image, context, onDiagnosis, failureId, companyId,
 }: {
   image?: string;
+  failureId?: string | null;
+  companyId?: string;
   context: { equipmentName?: string; category?: string; description?: string };
   onDiagnosis?: (d: AiDiagnosis) => void;
 }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [diag, setDiag] = useState<AiDiagnosis | null>(null);
   const [requested, setRequested] = useState<string | null>(null);
+  const [sparePartsByRef, setSparePartsByRef] = useState<Map<string, string>>(new Map());
   const scanRef = useRef<HTMLDivElement>(null);
   const boxesRef = useRef<HTMLDivElement>(null);
 
@@ -56,10 +60,26 @@ export default function AiScanner({
     return () => { tl.kill(); };
   }, [phase]);
 
+  useEffect(() => {
+    apiGet<Array<{ id: string; reference: string }>>('/api/spare-parts', []).then((parts) => {
+      setSparePartsByRef(new Map(parts.map((p) => [p.reference, p.id])));
+    });
+  }, []);
+
   async function requestPart(ref: string) {
+    if (!failureId || !companyId) return;
+    const sparePartId = sparePartsByRef.get(ref);
+    if (!sparePartId) return;
     await fetch('/api/parts', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ reference: ref, quantity: 1, urgency: 'urgent', status: 'requested' }),
+      body: JSON.stringify({
+        failure_id: failureId,
+        spare_part_id: sparePartId,
+        company_id: companyId,
+        quantity: 1,
+        urgency: 'urgent',
+        status: 'requested',
+      }),
     });
     setRequested(ref);
   }
@@ -162,8 +182,8 @@ export default function AiScanner({
                       <div className="text-sm text-chalk">{p.name} <span className="font-mono text-steel text-xs">({p.reference})</span></div>
                       <div className="text-xs text-steel">{p.reason}</div>
                     </div>
-                    <button onClick={() => requestPart(p.reference)} className="btn-ghost text-xs py-1.5">
-                      {requested === p.reference ? <><Check size={14} className="text-ok" /> Demandé</> : 'Demander'}
+                    <button onClick={() => requestPart(p.reference)} disabled={!failureId || !companyId} className="btn-ghost text-xs py-1.5 disabled:opacity-50">
+                      {requested === p.reference ? <><Check size={14} className="text-ok" /> Demandé</> : !failureId ? 'Créer la panne d’abord' : 'Demander'}
                     </button>
                   </motion.div>
                 ))}

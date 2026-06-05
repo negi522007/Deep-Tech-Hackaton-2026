@@ -1,14 +1,37 @@
 'use client';
-import { use } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader, SeverityBadge, StatusBadge } from '@/components/ui';
-import { equipmentById, companyById, failures } from '@/lib/sample-data';
+import { equipments as sampleEquipments, companies as sampleCompanies, failures as sampleFailures } from '@/lib/sample-data';
+import { Company, Equipment, Failure } from '@/lib/types';
 import { ArrowLeft } from 'lucide-react';
+import { apiGet } from '@/lib/http';
 
 export default function EquipmentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const e = equipmentById(id);
+  const [equipments, setEquipments] = useState<Equipment[]>(sampleEquipments);
+  const [companies, setCompanies] = useState<Company[]>(sampleCompanies);
+  const [failures, setFailures] = useState<Failure[]>(sampleFailures);
+
+  const load = useCallback(async () => {
+    const [e, c, f] = await Promise.all([
+      apiGet<Equipment[]>('/api/equipments', sampleEquipments),
+      apiGet<Company[]>('/api/companies', sampleCompanies),
+      apiGet<Failure[]>('/api/failures', sampleFailures),
+    ]);
+    setEquipments(e);
+    setCompanies(c);
+    setFailures(f);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const equipmentById = useMemo(() => new Map(equipments.map((e) => [e.id, e])), [equipments]);
+  const companyById = useMemo(() => new Map(companies.map((c) => [c.id, c])), [companies]);
+  const e = equipmentById.get(id);
   if (!e) notFound();
   const history = failures.filter((f) => f.equipment_id === id);
 
@@ -30,7 +53,7 @@ export default function EquipmentDetail({ params }: { params: Promise<{ id: stri
               ['Modèle', e.model],
               ['Date d\'achat', e.purchase_date],
               ['Emplacement', e.location],
-              ['Entreprise', companyById(e.company_id)?.name],
+              ['Entreprise', companyById.get(e.company_id)?.name],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4 border-b border-white/10 pb-2">
                 <dt className="text-steel">{k}</dt>

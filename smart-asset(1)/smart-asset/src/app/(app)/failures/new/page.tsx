@@ -1,22 +1,69 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/ui';
 import { FadeIn } from '@/components/motion';
 import CameraCapture, { CapturedShot } from '@/components/CameraCapture';
 import AiScanner from '@/components/AiScanner';
-import { equipments } from '@/lib/sample-data';
-import { AiDiagnosis } from '@/lib/types';
+import { equipments as sampleEquipments } from '@/lib/sample-data';
+import { AiDiagnosis, Equipment } from '@/lib/types';
+import { apiGet, apiPost } from '@/lib/http';
 
 export default function NewFailurePage() {
   const router = useRouter();
-  const [equipmentId, setEquipmentId] = useState(equipments[0].id);
+  const [equipments, setEquipments] = useState<Equipment[]>(sampleEquipments);
+  const [equipmentId, setEquipmentId] = useState(sampleEquipments[0].id);
   const [category, setCategory] = useState('mechanical');
   const [description, setDescription] = useState('');
   const [shots, setShots] = useState<CapturedShot[]>([]);
-  const [, setDiag] = useState<AiDiagnosis | null>(null);
+  const [diag, setDiag] = useState<AiDiagnosis | null>(null);
+  const [createdFailureId, setCreatedFailureId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const equipment = equipments.find((e) => e.id === equipmentId)!;
+  const loadEquipments = useCallback(async () => {
+    const data = await apiGet<Equipment[]>('/api/equipments', sampleEquipments);
+    setEquipments(data);
+    if (data.length > 0) setEquipmentId((prev) => prev || data[0].id);
+  }, []);
+
+  useEffect(() => {
+    loadEquipments();
+  }, [loadEquipments]);
+
+  const equipment = useMemo(() => equipments.find((e) => e.id === equipmentId), [equipments, equipmentId]);
+
+  async function saveFailure() {
+    if (!equipment) return;
+    setSaving(true);
+    const failure = await apiPost<{ id: string }>('/api/failures', {
+      equipment_id: equipment.id,
+      company_id: equipment.company_id,
+      title: description ? `Panne signalée: ${description.slice(0, 40)}` : `Incident ${new Date().toLocaleString('fr-FR')}`,
+      description,
+      category,
+      severity: diag?.severity || 'medium',
+      ai_diagnosis: diag,
+      status: 'reported',
+    });
+    if (!failure?.id) {
+      setSaving(false);
+      return;
+    }
+    setCreatedFailureId(failure.id);
+
+    await Promise.all(
+      shots.map((shot) =>
+        apiPost('/api/uploads/failure-image', {
+          failure_id: failure.id,
+          angle: shot.angle,
+          imageBase64: shot.dataUrl.split(',')[1],
+          imageMediaType: 'image/jpeg',
+        }),
+      ),
+    );
+    setSaving(false);
+    router.push('/failures');
+  }
 
   return (
     <div className="max-w-3xl">
@@ -52,13 +99,15 @@ export default function NewFailurePage() {
         <FadeIn delay={0.1}>
           <AiScanner
             image={shots[0]?.dataUrl}
-            context={{ equipmentName: equipment.name, category, description }}
+            failureId={createdFailureId}
+            companyId={equipment?.company_id}
+            context={{ equipmentName: equipment?.name, category, description }}
             onDiagnosis={(d) => setDiag(d)}
           />
         </FadeIn>
 
-        <button onClick={() => router.push('/failures')} className="btn-ghost w-full py-3">
-          Enregistrer la panne
+        <button onClick={saveFailure} disabled={saving || !equipment} className="btn-primary w-full py-3">
+          {saving ? 'Enregistrement…' : 'Enregistrer la panne'}
         </button>
       </div>
     </div>

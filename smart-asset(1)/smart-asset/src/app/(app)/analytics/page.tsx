@@ -1,10 +1,13 @@
 'use client';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/ui';
-import { failures, equipments, equipmentById, companies, partRequests, partById } from '@/lib/sample-data';
+import { failures, equipments, companies, partRequests, partById } from '@/lib/sample-data';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   AreaChart, Area, PieChart, Pie, Cell,
 } from 'recharts';
+import { apiGet } from '@/lib/http';
+import { getSupabaseBrowser, isSupabaseConfigured } from '@/lib/supabase/client';
 
 const AMBER = '#FFB22E';
 const STEEL = '#8A99AB';
@@ -14,19 +17,16 @@ function tooltipStyle() {
   return { background: '#141A22', border: '1px solid #2A3543', borderRadius: 8, fontSize: 12, color: '#E6ECF2' };
 }
 
-export default function AnalyticsPage() {
-  // Top failing equipment
+function demoData() {
   const byEquip = equipments.map((e) => ({
     name: e.name.length > 14 ? e.name.slice(0, 12) + '…' : e.name,
     pannes: failures.filter((f) => f.equipment_id === e.id).length,
   })).sort((a, b) => b.pannes - a.pannes);
 
-  // Top failure categories
   const catMap = new Map<string, number>();
   failures.forEach((f) => catMap.set(f.category, (catMap.get(f.category) || 0) + 1));
   const byCategory = [...catMap.entries()].map(([name, value]) => ({ name, value }));
 
-  // Monthly trend
   const monthMap = new Map<string, number>();
   failures.forEach((f) => {
     const m = new Date(f.reported_at).toLocaleDateString('fr-FR', { month: 'short' });
@@ -34,7 +34,6 @@ export default function AnalyticsPage() {
   });
   const trend = [...monthMap.entries()].map(([month, pannes]) => ({ month, pannes }));
 
-  // Top requested parts
   const partMap = new Map<string, number>();
   partRequests.forEach((r) => {
     const n = partById(r.spare_part_id)?.name ?? 'Autre';
@@ -42,11 +41,66 @@ export default function AnalyticsPage() {
   });
   const byPart = [...partMap.entries()].map(([name, qte]) => ({ name, qte })).sort((a, b) => b.qte - a.qte);
 
-  // By company
   const byCompany = companies.map((c) => ({
     name: c.name.split(' ')[0],
     pannes: failures.filter((f) => f.company_id === c.id).length,
   }));
+  return { byEquip, byCategory, trend, byPart, byCompany };
+}
+
+interface AnalyticsResponse {
+  kpis: {
+    total_equipment: number;
+    open_failures: number;
+    pending_parts: number;
+    avg_repair_hours: number;
+  };
+  topFailingEquipment: Array<{ equipment_id: string; name: string; failure_count: number }>;
+  monthlyTrend: Array<{ month: string; failures: number }>;
+  topRequestedParts: Array<{ part_id: string; name: string; total_requested: number }>;
+  byCategory: Array<{ category: string; total: number }>;
+  byCompany: Array<{ name: string; failure_count: number }>;
+}
+
+export default function AnalyticsPage() {
+  const fallback = useMemo(() => demoData(), []);
+  const [data, setData] = useState(fallback);
+
+  const load = useCallback(async () => {
+    const analytics = await apiGet<AnalyticsResponse | null>('/api/analytics', null);
+    if (!analytics) return setData(fallback);
+    setData({
+      byEquip: (analytics.topFailingEquipment || []).map((e) => ({
+        name: e.name.length > 14 ? e.name.slice(0, 12) + '…' : e.name,
+        pannes: e.failure_count,
+      })),
+      byCategory: (analytics.byCategory || []).map((c) => ({ name: c.category, value: c.total })),
+      trend: (analytics.monthlyTrend || []).map((m) => ({
+        month: new Date(m.month).toLocaleDateString('fr-FR', { month: 'short' }),
+        pannes: m.failures,
+      })),
+      byPart: (analytics.topRequestedParts || []).map((p) => ({ name: p.name, qte: p.total_requested })),
+      byCompany: (analytics.byCompany || []).map((c) => ({ name: c.name.split(' ')[0], pannes: c.failure_count })),
+    });
+  }, [fallback]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const sb = getSupabaseBrowser();
+    if (!sb) return;
+    const channel = sb
+      .channel('analytics-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'failures' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spare_part_requests' }, load)
+      .subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [load]);
 
   return (
     <div>
@@ -55,7 +109,7 @@ export default function AnalyticsPage() {
       <div className="grid lg:grid-cols-2 gap-4">
         <Card title="Tendance des pannes">
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={trend} margin={{ left: -20, right: 10, top: 10 }}>
+            <AreaChart data={data.trend} margin={{ left: -20, right: 10, top: 10 }}>
               <defs>
                 <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={AMBER} stopOpacity={0.5} />
@@ -74,8 +128,8 @@ export default function AnalyticsPage() {
         <Card title="Pannes par catégorie">
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={byCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                {byCategory.map((_, i) => <Cell key={i} fill={PIE[i % PIE.length]} />)}
+              <Pie data={data.byCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                {data.byCategory.map((_, i) => <Cell key={i} fill={PIE[i % PIE.length]} />)}
               </Pie>
               <Tooltip contentStyle={tooltipStyle()} />
             </PieChart>
@@ -84,7 +138,7 @@ export default function AnalyticsPage() {
 
         <Card title="Top équipements défaillants">
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={byEquip} margin={{ left: -20, right: 10 }}>
+            <BarChart data={data.byEquip} margin={{ left: -20, right: 10 }}>
               <CartesianGrid stroke="#2A3543" strokeDasharray="3 3" />
               <XAxis dataKey="name" stroke={STEEL} fontSize={10} />
               <YAxis stroke={STEEL} fontSize={11} allowDecimals={false} />
@@ -96,7 +150,7 @@ export default function AnalyticsPage() {
 
         <Card title="Pièces les plus demandées">
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={byPart} layout="vertical" margin={{ left: 40, right: 10 }}>
+            <BarChart data={data.byPart} layout="vertical" margin={{ left: 40, right: 10 }}>
               <CartesianGrid stroke="#2A3543" strokeDasharray="3 3" />
               <XAxis type="number" stroke={STEEL} fontSize={11} allowDecimals={false} />
               <YAxis type="category" dataKey="name" stroke={STEEL} fontSize={10} width={90} />
@@ -108,7 +162,7 @@ export default function AnalyticsPage() {
 
         <Card title="Répartition par entreprise" full>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={byCompany} margin={{ left: -20, right: 10 }}>
+            <BarChart data={data.byCompany} margin={{ left: -20, right: 10 }}>
               <CartesianGrid stroke="#2A3543" strokeDasharray="3 3" />
               <XAxis dataKey="name" stroke={STEEL} fontSize={11} />
               <YAxis stroke={STEEL} fontSize={11} allowDecimals={false} />

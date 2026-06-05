@@ -33,3 +33,22 @@ insert into failures (equipment_id, company_id, title, category, severity, statu
   ('aaaa2222-0000-0000-0000-000000000003','22222222-2222-2222-2222-222222222222','Capteur HS','electrical','medium','resolved', now() - interval '12 days', now() - interval '11 days'),
   ('aaaa3333-0000-0000-0000-000000000004','33333333-3333-3333-3333-333333333333','Vibration anormale','mechanical','medium','diagnosing', now() - interval '5 days', null)
 on conflict do nothing;
+
+insert into spare_part_requests (failure_id, spare_part_id, company_id, quantity, urgency, status, created_at)
+select f.id, sp.id, f.company_id, 1, 'urgent'::part_urgency, 'requested'::request_status, now() - interval '4 days'
+from failures f
+join spare_parts sp on sp.reference = 'SEN-PT100'
+where f.title = 'Vibration anormale'
+  and not exists (
+    select 1 from spare_part_requests r
+    where r.failure_id = f.id and r.spare_part_id = sp.id and r.status = 'requested'
+  )
+limit 1;
+
+insert into part_request_events (part_request_id, event_type, to_status, note)
+select r.id, 'requested', r.status, 'Demande créée lors du seed'
+from spare_part_requests r
+where r.created_at >= now() - interval '5 days'
+  and not exists (
+    select 1 from part_request_events e where e.part_request_id = r.id and e.event_type = 'requested'
+  );

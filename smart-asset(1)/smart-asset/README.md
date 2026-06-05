@@ -10,6 +10,7 @@ avec **capture photo guidée**, **diagnostic IA**, gestion des pièces de rechan
 
 > 🎨 Design system complet : voir **`docs/DESIGN_SYSTEM.md`**.
 > `/` = landing premium (3D) · `/dashboard` = Mission Control · le reste sous le shell applicatif.
+> 🔐 Setup clés/API détaillé : voir **`docs/SETUP_KEYS.md`**.
 
 ---
 

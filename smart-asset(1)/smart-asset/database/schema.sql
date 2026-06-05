@@ -119,6 +119,17 @@ create table if not exists spare_part_requests (
   updated_at     timestamptz not null default now()
 );
 
+create table if not exists part_request_events (
+  id              uuid primary key default gen_random_uuid(),
+  part_request_id uuid not null references spare_part_requests(id) on delete cascade,
+  event_type      text not null,
+  from_status     request_status,
+  to_status       request_status,
+  note            text,
+  actor_id        uuid references users(id) on delete set null,
+  created_at      timestamptz not null default now()
+);
+
 -- Repair workflow: one row per step instance per failure
 create table if not exists workflow_steps (
   id           uuid primary key default gen_random_uuid(),
@@ -155,6 +166,7 @@ create index if not exists idx_failures_category      on failures(category);
 create index if not exists idx_part_requests_failure  on spare_part_requests(failure_id);
 create index if not exists idx_part_requests_part     on spare_part_requests(spare_part_id);
 create index if not exists idx_part_requests_company  on spare_part_requests(company_id);
+create index if not exists idx_part_request_events_request on part_request_events(part_request_id, created_at);
 create index if not exists idx_workflow_failure       on workflow_steps(failure_id);
 create index if not exists idx_failure_images_failure on failure_images(failure_id);
 create index if not exists idx_notifications_user     on notifications(user_id, is_read);

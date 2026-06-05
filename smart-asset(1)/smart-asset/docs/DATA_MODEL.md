@@ -21,6 +21,7 @@ failures 1──< spare_part_requests  (failure_id)
 failures 1──< notifications        (failure_id)
 
 spare_parts 1──< spare_part_requests (spare_part_id)
+spare_part_requests 1──< part_request_events (part_request_id)
 users 1──< notifications            (user_id)
 ```
 
@@ -36,6 +37,7 @@ users 1──< notifications            (user_id)
 | `failure_images` | preuves visuelles multi-angles | `failure_id → failures` |
 | `spare_parts` | catalogue + stock | — ; `reference` unique |
 | `spare_part_requests` | demandes liées à une panne | `failure_id`, `spare_part_id`, `company_id`, `requested_by` |
+| `part_request_events` | historique horodaté des changements d’une demande | `part_request_id`, `actor_id` |
 | `workflow_steps` | 7 étapes par panne | `failure_id` ; unique `(failure_id, step_order)` |
 | `notifications` | alertes utilisateur | `user_id`, `failure_id` |
 
