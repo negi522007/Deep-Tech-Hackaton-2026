@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/ui';
 import { companies, equipments, spareParts, equipmentStatus, STATUS_LABELS, STATUS_COLORS, WORKFLOW_STEP_NAMES } from '@/lib/sample-data';
 import { useStore } from '@/lib/store';
 import { SeverityBadge } from '@/components/ui';
-import { Building2, Boxes, AlertTriangle, Package, ArrowRight, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Building2, Boxes, AlertTriangle, Package, ArrowRight, CheckCircle, ShieldCheck, Radar, Activity } from 'lucide-react';
 
 export default function AdminPage() {
   const { failures, workflowProgress, advanceWorkflow, partRequests } = useStore();
@@ -55,6 +55,36 @@ export default function AdminPage() {
             <p className={`text-3xl font-black tabular-nums ${color}`}>{value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Radar Prédictif (Hackathon Demo Feature) */}
+      <div className="mb-8">
+        <div className="rounded-xl border border-crit/30 bg-[var(--surface1)] p-5 relative overflow-hidden">
+          <div className="absolute -top-10 -right-10 opacity-5">
+            <Radar size={150} className="text-crit animate-[spin_10s_linear_infinite]" />
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-crit/20 text-crit">
+              <Activity size={16} />
+            </div>
+            <h3 className="font-bold text-chalk">Radar Prédictif IA</h3>
+            <span className="ml-2 rounded-full border border-crit/40 bg-crit/10 px-2 py-0.5 text-[10px] font-bold text-crit uppercase tracking-wider animate-pulse">
+              Alerte Imminente
+            </span>
+          </div>
+          <p className="text-sm text-chalk leading-relaxed max-w-2xl relative z-10">
+            <span className="font-semibold text-crit">Risque critique (85%)</span> détecté sur <span className="font-mono bg-white/5 px-1 rounded text-cyan">Extrudeuse EX-200</span>. 
+            L'analyse des vibrations et de l'historique thermique projette une défaillance du roulement principal d'ici <span className="font-bold underline decoration-crit/50">5 jours</span>.
+          </p>
+          <div className="mt-4 flex gap-3 relative z-10">
+            <button className="btn-primary py-1.5 px-4 text-xs !bg-crit hover:!bg-crit/80 border-none text-white shadow-[0_0_15px_rgba(255,92,122,0.4)]">
+              Générer ordre préventif
+            </button>
+            <button className="btn-ghost py-1.5 px-4 text-xs">
+              Détails de l'analyse
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Vue par entreprise */}

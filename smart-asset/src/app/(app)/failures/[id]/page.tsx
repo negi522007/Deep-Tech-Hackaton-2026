@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ArrowRight, CheckCircle, Clock, Package } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Clock, Package, MessageCircle } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { equipmentById, companyById, workflowFor, WORKFLOW_STEP_NAMES } from '@/lib/sample-data';
 import { SeverityBadge, StatusBadge } from '@/components/ui';
@@ -157,6 +157,26 @@ export default function FailureDetailPage({ params }: { params: { id: string } }
           )}
         </div>
       </div>
+
+      {/* Contact Technicien (WhatsApp) */}
+      {failure.submitter && (
+        <div className="glass p-5 mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="label-mono mb-1">Demandeur</p>
+              <p className="text-sm text-chalk">{failure.submitter.firstName} {failure.submitter.lastName}</p>
+              <p className="text-xs text-steel">{failure.submitter.company} · {failure.submitter.phone}</p>
+            </div>
+            <a
+              href={`https://wa.me/${failure.submitter.phone.replace(/\s+/g, '')}?text=${encodeURIComponent(`[AssetIQ] Bonjour ${failure.submitter.firstName}, concernant la panne "${failure.title}" sur l'équipement ${equipment?.name}. Les pièces ont été commandées.`)}`}
+              target="_blank" rel="noopener noreferrer"
+              className="btn flex items-center gap-2 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 border-[#25D366]/30 transition-colors px-4 py-2"
+            >
+              <MessageCircle size={16} /> Prévenir par WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

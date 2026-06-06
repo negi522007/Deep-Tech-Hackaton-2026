@@ -7,7 +7,7 @@ import { AiDiagnosis, Severity, Submitter } from '@/lib/types';
 import CameraCapture, { CapturedShot } from '@/components/CameraCapture';
 import AiScanner from '@/components/AiScanner';
 import { FadeIn } from '@/components/motion';
-import { User, Wrench, Camera, CheckCircle, ChevronRight } from 'lucide-react';
+import { User, Wrench, Camera, CheckCircle, ChevronRight, QrCode, Mic, Loader2 } from 'lucide-react';
 
 const STEPS = ['Vos informations', 'La panne', 'Capture visuelle', 'Confirmation'];
 
@@ -40,6 +40,8 @@ export default function SoumettreForm() {
   const [severity, setSeverity] = useState<Severity>('medium');
   const [title, setTitle]       = useState('');
   const [desc, setDesc]         = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [listening, setListening] = useState(false);
 
   // Step 2 — Visuel + IA
   const [shots, setShots]     = useState<CapturedShot[]>([]);
@@ -52,6 +54,39 @@ export default function SoumettreForm() {
 
   function nextStep() { setStep(s => s + 1); }
   function prevStep() { setStep(s => s - 1); }
+
+  function startScan() {
+    setScanning(true);
+    setTimeout(() => {
+      // On sélectionne le 2ème équipement (ou un spécifique) pour la démo
+      const eq = equipments.length > 1 ? equipments[1] : equipments[0];
+      setEquipmentId(eq.id);
+      setScanning(false);
+    }, 2500);
+  }
+
+  function startListening() {
+    if (typeof window === 'undefined') return;
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("La reconnaissance vocale n'est pas supportée par ce navigateur.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setListening(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setDesc(prev => prev ? prev + ' ' + transcript : transcript);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognition.start();
+  }
 
   function handleDiagnosis(d: AiDiagnosis) {
     setDiag(d);
@@ -160,11 +195,22 @@ export default function SoumettreForm() {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <label className="space-y-1.5">
-                <span className="text-xs text-steel">Équipement *</span>
-                <select value={equipId} onChange={e => setEquipId(e.target.value)} className="field-input">
-                  {equipments.map(e => <option key={e.id} value={e.id}>{e.name} ({e.serial_number})</option>)}
-                </select>
+              <label className="space-y-1.5 relative">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-steel">Équipement *</span>
+                  <button onClick={startScan} type="button" className="text-cyan text-xs flex items-center gap-1 hover:underline">
+                    <QrCode size={12} /> Scan QR
+                  </button>
+                </div>
+                {scanning ? (
+                  <div className="field-input flex items-center gap-2 text-cyan font-mono text-sm border-cyan/40 bg-cyan/5">
+                    <Loader2 size={15} className="animate-spin" /> Détection en cours...
+                  </div>
+                ) : (
+                  <select value={equipId} onChange={e => setEquipId(e.target.value)} className="field-input">
+                    {equipments.map(e => <option key={e.id} value={e.id}>{e.name} ({e.serial_number})</option>)}
+                  </select>
+                )}
               </label>
               <label className="space-y-1.5">
                 <span className="text-xs text-steel">Catégorie *</span>
@@ -179,11 +225,20 @@ export default function SoumettreForm() {
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="ex : Roulement bruyant sur le convoyeur" className="field-input" />
             </label>
 
-            <label className="block space-y-1.5">
-              <span className="text-xs text-steel">Description des symptômes</span>
+            <label className="block space-y-1.5 relative">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-steel">Description des symptômes</span>
+                <button 
+                  onClick={startListening} 
+                  type="button" 
+                  className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded transition ${listening ? 'bg-crit/20 text-crit animate-pulse' : 'bg-[var(--surface2)] text-steel hover:text-chalk'}`}
+                >
+                  <Mic size={12} /> {listening ? 'Écoute en cours...' : 'Dictée vocale'}
+                </button>
+              </div>
               <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4}
                 placeholder="Décrivez ce que vous observez : bruits, vibrations, fuites, surchauffe, depuis quand…"
-                className="field-input resize-none" />
+                className={`field-input resize-none ${listening ? 'border-crit/40 focus:border-crit/40' : ''}`} />
             </label>
 
             <div className="space-y-1.5">
